@@ -48,43 +48,41 @@ function validate_packages {
 	fi
 	
 	echo "Validating packages: $packages"
-	
-	# Create temporary directory for validation
-	local temp_dir=$(mktemp -d)
-	local temp_sources="$temp_dir/sources.list"
-	
-	# Create temporary sources.list for validation
+
+	# Determine repo components to check
+	local components
 	case "$dist" in
-		noble)
-			cat > "$temp_sources" <<EOF
-deb $mirror $dist main restricted universe multiverse
-EOF
-		;;
-		bookworm)
-			cat > "$temp_sources" <<EOF
-deb $mirror $dist main contrib non-free
-EOF
-		;;
+		noble)    components="main restricted universe multiverse" ;;
+		bookworm) components="main contrib non-free" ;;
 	esac
-	
-	# Update package cache for validation
-	echo "Updating package cache for validation..."
-	apt update -o Dir::Etc::SourceList="$temp_sources" -q
-	
-	# Check each package
-	for pkg in $packages; do
-		echo "Checking package: $pkg"
-		if ! apt-cache show $pkg >/dev/null 2>&1; then
-			echo "Error: Package '$pkg' not found in repositories"
-			echo "Available similar packages:"
-			apt-cache search $pkg | head -5
-			rm -rf "$temp_dir"
-			exit 1
+
+	# Download and decompress Packages indices from the mirror
+	local temp_dir=$(mktemp -d)
+	local pkg_list="$temp_dir/all_packages"
+	touch "$pkg_list"
+
+	echo "Fetching package indices for $arch..."
+	for comp in $components; do
+		local url="$mirror/dists/$dist/$comp/binary-$arch/Packages.gz"
+		if curl -sf "$url" | gunzip 2>/dev/null | grep "^Package: " | awk '{print $2}' >> "$pkg_list"; then
+			echo "  ✓ $comp"
 		else
-			echo "✓ Package '$pkg' found"
+			echo "  ⚠ $comp (not available, skipping)"
 		fi
 	done
-	
+
+	# Check each package against the index
+	for pkg in $packages; do
+		echo "Checking package: $pkg"
+		if grep -qx "$pkg" "$pkg_list"; then
+			echo "  ✓ Package '$pkg' found"
+		else
+			echo "  ✗ Error: Package '$pkg' not found in repositories"
+			rm -rf "$temp_dir"
+			exit 1
+		fi
+	done
+
 	# Cleanup
 	rm -rf "$temp_dir"
 	echo "All packages validated successfully"
