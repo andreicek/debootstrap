@@ -122,8 +122,11 @@ function second_stage {
 
 case "$distro" in
 	noble)
-	# Add package src repos
+	# Add full repository sources (binary + source)
 	cat <<EOF >> /etc/apt/sources.list
+deb http://ports.ubuntu.com/ubuntu-ports $distro restricted universe multiverse
+deb http://ports.ubuntu.com/ubuntu-ports ${distro}-updates main restricted universe multiverse
+deb http://ports.ubuntu.com/ubuntu-ports ${distro}-security main restricted universe multiverse
 deb-src http://ports.ubuntu.com/ubuntu-ports $distro main restricted universe multiverse
 deb-src http://ports.ubuntu.com/ubuntu-ports ${distro}-updates main restricted universe multiverse
 deb-src http://ports.ubuntu.com/ubuntu-ports ${distro}-security main restricted universe multiverse
